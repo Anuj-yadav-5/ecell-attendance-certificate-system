@@ -11,6 +11,9 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+app.use('/css', express.static(path.join(__dirname, 'css')));
+app.use('/js', express.static(path.join(__dirname, 'js')));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use(express.static(__dirname));
 
 const SETTINGS_FILE = process.env.VERCEL ? path.join('/tmp', 'smtp_config.json') : path.join(__dirname, 'smtp_config.json');
