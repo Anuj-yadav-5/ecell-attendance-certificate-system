@@ -13,8 +13,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use(express.static(__dirname));
 
-const SETTINGS_FILE = path.join(__dirname, 'smtp_config.json');
-const DB_FILE = path.join(__dirname, 'database.json');
+const SETTINGS_FILE = process.env.VERCEL ? path.join('/tmp', 'smtp_config.json') : path.join(__dirname, 'smtp_config.json');
+const DB_FILE = process.env.VERCEL ? path.join('/tmp', 'database.json') : path.join(__dirname, 'database.json');
 
 function getDatabase() {
   if (fs.existsSync(DB_FILE)) {
@@ -292,6 +292,10 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`E-Cell Attendance & Certificate Server live on http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`E-Cell Attendance & Certificate Server live on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
