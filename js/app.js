@@ -77,17 +77,33 @@ const App = {
       });
     });
 
-    const menuBtn = document.getElementById('mobileMenuBtn');
+    const toggleBtn = document.getElementById('mobileMenuToggleBtn');
+    const backdrop = document.getElementById('sidebarBackdrop');
     const sidebar = document.querySelector('.app-sidebar');
-    if (menuBtn && sidebar) {
-      menuBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('open');
-      });
-    }
+
+    const toggleSidebar = () => {
+      if (sidebar) sidebar.classList.toggle('open');
+      if (backdrop) backdrop.classList.toggle('active');
+    };
+
+    const closeSidebar = () => {
+      if (sidebar) sidebar.classList.remove('open');
+      if (backdrop) backdrop.classList.remove('active');
+    };
+
+    if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
+    if (backdrop) backdrop.addEventListener('click', closeSidebar);
   },
 
   navigateTo(viewName) {
     this.currentView = viewName;
+    
+    // Auto-close mobile sidebar drawer on navigation
+    const sidebar = document.querySelector('.app-sidebar');
+    const backdrop = document.getElementById('sidebarBackdrop');
+    if (sidebar) sidebar.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('active');
+
     document.querySelectorAll('.page-view').forEach(view => {
       view.classList.remove('active');
     });

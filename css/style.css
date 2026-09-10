@@ -968,10 +968,174 @@ input[type="range"] {
 .toast.success { border-left: 4px solid var(--success); }
 .toast.error { border-left: 4px solid var(--danger); }
 
+/* Sidebar Backdrop for Mobile */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(5px);
+  z-index: 45;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s;
+}
+
+.sidebar-backdrop.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.mobile-menu-toggle-btn {
+  display: none;
+}
+
+/* ==========================================================================
+   RESPONSIVE MEDIA QUERIES (Mobile & Tablet Support)
+   ========================================================================== */
+
 @media (max-width: 1024px) {
-  .app-sidebar { position: fixed; left: -260px; }
-  .app-sidebar.open { left: 0; }
-  .studio-layout { grid-template-columns: 1fr; }
+  .mobile-menu-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 270px;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 50;
+    box-shadow: 0 0 35px rgba(0, 0, 0, 0.9);
+  }
+
+  .app-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .app-main {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .studio-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-topbar {
+    padding: 12px 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .topbar-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .topbar-actions .btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .page-content {
+    padding: 14px 12px;
+  }
+
+  .card {
+    padding: 16px 14px;
+    border-radius: var(--radius-md);
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .data-table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-md);
+  }
+
+  .data-table {
+    min-width: 580px;
+  }
+
+  /* Wizard Steps */
+  .wizard-steps {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .wizard-step {
+    font-size: 12px;
+    padding: 6px 10px;
+    flex: 1;
+    min-width: 130px;
+    text-align: center;
+  }
+
+  /* Modals on Mobile */
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .modal-container {
+    max-width: 100% !important;
+    max-height: 90vh;
+    padding: 20px 16px;
+  }
+
+  .confirm-dialog-card {
+    border-radius: var(--radius-lg) !important;
+    padding: 24px 18px !important;
+  }
+
+  /* Certificate Canvas Studio */
+  #certificateCanvas {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 16px;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .admin-auth-card {
+    padding: 26px 18px;
+    border-radius: var(--radius-md);
+  }
 }
 
 /* Admin Auth Screen */
