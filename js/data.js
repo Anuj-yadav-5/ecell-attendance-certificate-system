@@ -226,27 +226,60 @@ class ECellDataStore {
 
   // --- ATTENDANCE ---
   getAttendance() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.ATTENDANCE) || '[]');
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEYS.ATTENDANCE) || '[]');
+    // Automatic deduplication: keep single newest record per (eventId + date + memberId)
+    const seen = new Set();
+    const clean = [];
+    raw.forEach(r => {
+      const key = `${r.eventId}_${r.date}_${r.memberId}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        clean.push(r);
+      }
+    });
+    return clean;
   }
 
   saveAttendance(attendance) {
-    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(attendance));
-    this.pushToServer({ attendance });
+    // Ensure only deduplicated records are saved
+    const seen = new Set();
+    const clean = [];
+    (attendance || []).forEach(r => {
+      const key = `${r.eventId}_${r.date}_${r.memberId}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        clean.push(r);
+      }
+    });
+
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(clean));
+    this.pushToServer({ attendance: clean });
   }
 
   recordAttendanceBatch(eventId, presentMemberIds, absentMemberIds = []) {
-    const allAttendance = this.getAttendance();
+    let allAttendance = this.getAttendance();
     const event = this.getEventById(eventId);
     const members = this.getMembers();
     const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
+    const dateStr = (event && event.date) ? event.date : now.toISOString().split('T')[0];
     const timestampStr = now.toISOString();
 
+    // Remove any existing records for this event session and target members
+    const targetMemberSet = new Set();
+    [...presentMemberIds, ...absentMemberIds].forEach(id => {
+      const mem = members.find(m => m.id === id || m.memberId === id);
+      if (mem) targetMemberSet.add(mem.memberId);
+    });
+
+    allAttendance = allAttendance.filter(r => !(r.eventId === eventId && r.date === dateStr && targetMemberSet.has(r.memberId)));
+
     const newRecords = [];
+    const processedMembers = new Set();
 
     presentMemberIds.forEach(mId => {
       const mem = members.find(m => m.id === mId || m.memberId === mId);
-      if (mem) {
+      if (mem && !processedMembers.has(mem.memberId)) {
+        processedMembers.add(mem.memberId);
         newRecords.push({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
           eventId: event ? event.id : eventId,
@@ -266,7 +299,8 @@ class ECellDataStore {
 
     absentMemberIds.forEach(mId => {
       const mem = members.find(m => m.id === mId || m.memberId === mId);
-      if (mem) {
+      if (mem && !processedMembers.has(mem.memberId)) {
+        processedMembers.add(mem.memberId);
         newRecords.push({
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
           eventId: event ? event.id : eventId,
