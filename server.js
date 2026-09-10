@@ -77,19 +77,52 @@ app.post('/api/data', (req, res) => {
   }
 });
 
+let memorySmtpConfig = null;
+
 function getSavedSmtpConfig() {
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    return {
+      provider: process.env.SMTP_PROVIDER || 'gmail',
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+      senderName: process.env.SMTP_SENDER_NAME || 'E-Cell Official',
+      senderEmail: process.env.SMTP_SENDER_EMAIL || process.env.SMTP_USER,
+      emailSubject: process.env.SMTP_EMAIL_SUBJECT || 'Official Certificate of Participation - {eventTitle}',
+      emailBody: process.env.SMTP_EMAIL_BODY || 'Dear {name},\n\nCongratulations on attending "{eventTitle}"!\n\nYour official Certificate of Participation from the Entrepreneurship Cell is attached as a PDF.\n\nCertificate ID: {certificateNumber}\n\nWarm regards,\nEntrepreneurship Cell (E-Cell)'
+    };
+  }
+  if (memorySmtpConfig && memorySmtpConfig.user && memorySmtpConfig.pass) {
+    return memorySmtpConfig;
+  }
   if (fs.existsSync(SETTINGS_FILE)) {
     try {
-      return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
-    } catch (e) {
-      return null;
-    }
+      const cfg = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+      if (cfg && cfg.user) {
+        memorySmtpConfig = cfg;
+        return cfg;
+      }
+    } catch (e) {}
+  }
+  const db = getDatabase();
+  if (db && db.smtpConfig && db.smtpConfig.user && db.smtpConfig.pass) {
+    memorySmtpConfig = db.smtpConfig;
+    return db.smtpConfig;
   }
   return null;
 }
 
 function saveSmtpConfig(config) {
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(config, null, 2), 'utf8');
+  memorySmtpConfig = config;
+  try {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(config, null, 2), 'utf8');
+  } catch (e) {}
+  try {
+    const db = getDatabase();
+    db.smtpConfig = config;
+    saveDatabase(db);
+  } catch (e) {}
 }
 
 // Create Nodemailer Transporter

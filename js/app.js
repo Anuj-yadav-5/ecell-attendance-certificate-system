@@ -47,7 +47,26 @@ const App = {
     try {
       const res = await fetch('/api/smtp-config');
       const data = await res.json();
-      this.isEmailConfigured = !!data.isConfigured;
+      
+      const cached = localStorage.getItem('ecell_smtp_config_v1');
+      let cachedConfig = null;
+      if (cached) {
+        try { cachedConfig = JSON.parse(cached); } catch(e) {}
+      }
+
+      if (data.isConfigured) {
+        this.isEmailConfigured = true;
+      } else if (cachedConfig && cachedConfig.user && cachedConfig.pass) {
+        // Auto-restore server connection from local cache if serverless instance cold-started
+        this.isEmailConfigured = true;
+        fetch('/api/smtp-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cachedConfig)
+        }).catch(() => {});
+      } else {
+        this.isEmailConfigured = false;
+      }
 
       const warningBanner = document.getElementById('dashboardEmailWarningBanner');
       if (warningBanner) {
@@ -55,9 +74,10 @@ const App = {
       }
 
       const statusBadge = document.getElementById('emailConfigStatusBadge');
+      const activeEmail = (data.config && data.config.user) || (cachedConfig && cachedConfig.user) || '';
       if (statusBadge) {
-        if (this.isEmailConfigured) {
-          statusBadge.innerHTML = `<span class="badge badge-status-present">✓ Real Email Active (${data.config.user})</span>`;
+        if (this.isEmailConfigured && activeEmail) {
+          statusBadge.innerHTML = `<span class="badge badge-status-present">✓ Real Email Active (${activeEmail})</span>`;
         } else {
           statusBadge.innerHTML = `<span class="badge badge-webinar">⚠️ Sender Not Configured</span>`;
         }
@@ -1442,6 +1462,8 @@ const App = {
 
   // --- 7. EMAIL & SMTP SETTINGS MODULE ---
   setupEmailSettingsModule() {
+    this.loadEmailSettings();
+
     document.getElementById('smtpProvider')?.addEventListener('change', (e) => {
       const customBox = document.getElementById('customSmtpFields');
       if (customBox) {
@@ -1459,26 +1481,37 @@ const App = {
   },
 
   async loadEmailSettings() {
+    const cached = localStorage.getItem('ecell_smtp_config_v1');
+    let localConfig = null;
+    if (cached) {
+      try { localConfig = JSON.parse(cached); } catch(e) {}
+    }
+
     try {
       const res = await fetch('/api/smtp-config');
       const data = await res.json();
-      if (data.success && data.config) {
-        const c = data.config;
-        if (document.getElementById('smtpProvider')) document.getElementById('smtpProvider').value = c.provider || 'gmail';
-        if (document.getElementById('smtpHost')) document.getElementById('smtpHost').value = c.host || 'smtp.gmail.com';
-        if (document.getElementById('smtpPort')) document.getElementById('smtpPort').value = c.port || 587;
-        if (document.getElementById('smtpUser')) document.getElementById('smtpUser').value = c.user || '';
-        if (document.getElementById('smtpSenderName')) document.getElementById('smtpSenderName').value = c.senderName || 'E-Cell Official';
-        if (document.getElementById('smtpEmailSubject')) document.getElementById('smtpEmailSubject').value = c.emailSubject || 'Official Certificate of Participation - {eventTitle}';
-        if (document.getElementById('smtpEmailBody')) document.getElementById('smtpEmailBody').value = c.emailBody || 'Dear {name},\n\nCongratulations on attending "{eventTitle}"!\n\nYour official Certificate of Participation from the Entrepreneurship Cell is attached as a PDF.\n\nCertificate ID: {certificateNumber}\n\nWarm regards,\nEntrepreneurship Cell (E-Cell)';
+      const c = (data.success && data.config && data.config.user) ? data.config : (localConfig || {});
+
+      if (c) {
+        if (document.getElementById('smtpProvider') && c.provider) document.getElementById('smtpProvider').value = c.provider;
+        if (document.getElementById('smtpHost') && c.host) document.getElementById('smtpHost').value = c.host;
+        if (document.getElementById('smtpPort') && c.port) document.getElementById('smtpPort').value = c.port;
+        if (document.getElementById('smtpUser') && c.user) document.getElementById('smtpUser').value = c.user;
+        if (document.getElementById('smtpPass') && localConfig && localConfig.pass) document.getElementById('smtpPass').value = localConfig.pass;
+        if (document.getElementById('smtpSenderName') && c.senderName) document.getElementById('smtpSenderName').value = c.senderName;
+        if (document.getElementById('smtpEmailSubject') && c.emailSubject) document.getElementById('smtpEmailSubject').value = c.emailSubject;
+        if (document.getElementById('smtpEmailBody') && c.emailBody) document.getElementById('smtpEmailBody').value = c.emailBody;
         
         const customBox = document.getElementById('customSmtpFields');
         if (customBox) {
-          customBox.style.display = c.provider === 'custom' ? 'block' : 'none';
+          customBox.style.display = (c.provider === 'custom') ? 'block' : 'none';
         }
       }
     } catch (e) {
-      console.log('Error loading settings', e);
+      if (localConfig) {
+        if (document.getElementById('smtpUser')) document.getElementById('smtpUser').value = localConfig.user || '';
+        if (document.getElementById('smtpPass')) document.getElementById('smtpPass').value = localConfig.pass || '';
+      }
     }
   },
 
@@ -1513,6 +1546,8 @@ const App = {
       });
       const data = await res.json();
       if (data.success) {
+        // Save permanently to local storage and sync to state
+        localStorage.setItem('ecell_smtp_config_v1', JSON.stringify(config));
         this.showToast(data.message || 'Connected successfully! Real emails ready to send.', 'success');
         this.checkEmailConfigurationStatus();
       } else {
