@@ -242,44 +242,88 @@ app.post('/api/send-certificate-email', async (req, res) => {
     const transporter = createTransporter(config);
 
     // Dynamic placeholders replacement
-    let subject = config.emailSubject || 'Certificate of Participation - {eventTitle}';
+    let subject = config.emailSubject || 'Official Certificate of Participation - {eventTitle}';
     subject = subject.replace(/\{name\}/g, recipientName || 'Member')
                      .replace(/\{eventTitle\}/g, eventTitle || 'E-Cell Event')
                      .replace(/\{certificateNumber\}/g, certificateNumber || '');
 
-    let bodyText = customDescription || config.emailBody || `Dear {name},\n\nCongratulations on attending "{eventTitle}". Your official certificate is attached.`;
+    let bodyText = customDescription || config.emailBody || `Congratulations on attending "{eventTitle}"!\n\nYour official Certificate of Participation from E-Cell ABES (Entrepreneurship Cell) is attached as a PDF.\n\nCertificate ID: {certificateNumber}`;
     bodyText = bodyText.replace(/\{name\}/g, recipientName || 'Member')
                        .replace(/\{eventTitle\}/g, eventTitle || 'E-Cell Event')
                        .replace(/\{certificateNumber\}/g, certificateNumber || '');
 
-    // Formatted Clean HTML Body
+    // Avoid duplicate greeting if bodyText already starts with Dear
+    const greetingHtml = bodyText.toLowerCase().trim().startsWith('dear ') 
+      ? '' 
+      : `<p style="font-size: 16px; font-weight: 700; margin-top: 0; color: #0f172a;">Dear ${recipientName || 'Member'},</p>`;
+
+    // Formatted Clean Branded HTML Body
     const htmlContent = `
-      <div style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #ffffff;">
-        <div style="background: #4f46e5; color: #ffffff; padding: 24px; text-align: center;">
-          <h2 style="margin: 0; font-size: 22px; font-weight: 700;">Entrepreneurship Cell (E-Cell)</h2>
-          <p style="margin: 4px 0 0; opacity: 0.9; font-size: 13.5px;">Official Certificate of Participation</p>
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #0f172a; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; background: #ffffff; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+        
+        <!-- BRANDED HEADER -->
+        <div style="background: linear-gradient(135deg, #090c15 0%, #161c2e 100%); color: #ffffff; padding: 26px 20px; text-align: center; border-bottom: 3px solid #f59e0b;">
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto 10px;">
+            <tr>
+              <td style="width: 60px; height: 60px; background: #000000; border: 2px solid #fbbf24; border-radius: 14px; padding: 4px; text-align: center; vertical-align: middle;">
+                <img src="cid:ecell_logo" alt="E-Cell ABES Logo" width="52" height="52" style="display: block; margin: 0 auto; object-fit: contain;" />
+              </td>
+            </tr>
+          </table>
+          <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #fbbf24; letter-spacing: 0.5px;">E-CELL ABES</h1>
+          <p style="margin: 3px 0 0; color: #94a3b8; font-size: 12.5px; font-weight: 500;">Entrepreneurship Cell &bull; ABES Engineering College</p>
+          <div style="display: inline-block; margin-top: 10px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 20px; padding: 4px 16px; font-size: 12px; color: #fde68a; font-weight: 700;">
+            Official Certificate of Participation
+          </div>
         </div>
-        <div style="padding: 26px 24px;">
-          <p style="font-size: 16px; font-weight: 700; margin-top: 0; color: #0f172a;">Dear ${recipientName || 'Member'},</p>
-          <div style="font-size: 14.5px; white-space: pre-line; color: #334155; margin-bottom: 22px;">
+
+        <!-- BODY CONTENT -->
+        <div style="padding: 28px 24px;">
+          ${greetingHtml}
+          <div style="font-size: 14.5px; white-space: pre-line; color: #334155; line-height: 1.65; margin-bottom: 22px;">
             ${bodyText}
           </div>
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #4f46e5; border-radius: 6px; padding: 14px 16px; margin-bottom: 20px;">
-            <p style="margin: 0 0 4px; font-size: 13.5px;"><strong>Event / Workshop:</strong> ${eventTitle}</p>
-            <p style="margin: 0; font-size: 13.5px;"><strong>Certificate ID:</strong> <span style="font-family: monospace; color: #4f46e5; font-weight: bold;">${certificateNumber}</span></p>
+
+          <!-- EVENT & CERTIFICATE INFO CARD -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 14px 16px; margin-bottom: 18px;">
+            <p style="margin: 0 0 5px; font-size: 13.5px; color: #334155;"><strong>Event / Session:</strong> <span style="color: #0f172a; font-weight: 600;">${eventTitle}</span></p>
+            <p style="margin: 0; font-size: 13.5px; color: #334155;"><strong>Certificate ID:</strong> <span style="font-family: monospace; color: #d97706; font-weight: 800; font-size: 14.5px;">${certificateNumber}</span></p>
           </div>
-          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 12px 16px; font-size: 13.5px; color: #166534; margin-bottom: 16px;">
-            📎 <strong>PDF Certificate Attached:</strong> Your high-resolution certificate has been attached to this email. You can download and share it on LinkedIn!
+
+          <!-- PDF ATTACHMENT BADGE -->
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #166534; margin-bottom: 20px;">
+            📎 <strong>Official PDF Attached:</strong> Your high-resolution vector certificate has been attached to this email. You can download and share it on LinkedIn!
+          </div>
+
+          <!-- SIGNATURE -->
+          <div style="margin-top: 22px; padding-top: 14px; border-top: 1px solid #f1f5f9; font-size: 13px; color: #64748b;">
+            <p style="margin: 0; font-weight: 600; color: #0f172a;">Warm regards,</p>
+            <p style="margin: 2px 0 0; font-weight: 700; color: #b45309; font-size: 14px;">Team E-Cell ABES</p>
+            <p style="margin: 0; font-size: 11.5px; color: #94a3b8;">Entrepreneurship Cell, ABES EC</p>
           </div>
         </div>
-        <div style="background: #f1f5f9; padding: 14px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
-          Sent by Entrepreneurship Cell (E-Cell) Portal. This is an official automated dispatch.
+
+        <!-- FOOTER -->
+        <div style="background: #f8fafc; padding: 12px 20px; text-align: center; font-size: 11.5px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+          Sent by <strong>E-Cell ABES</strong> Automated Dispatch System. This is an official automated communication.
         </div>
       </div>
     `;
 
-    // Process PDF attachment
+    // Process Attachments (Logo + PDF)
     const attachments = [];
+
+    // Add Embedded E-Cell Logo
+    const logoPath = path.join(__dirname, 'assets', 'logo.png');
+    if (fs.existsSync(logoPath)) {
+      attachments.push({
+        filename: 'ecell_logo.png',
+        path: logoPath,
+        cid: 'ecell_logo'
+      });
+    }
+
+    // Process PDF attachment
     if (pdfBase64) {
       const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;filename=[^;]+;base64,/, '').replace(/^data:application\/pdf;base64,/, '');
       attachments.push({
@@ -292,7 +336,7 @@ app.post('/api/send-certificate-email', async (req, res) => {
 
     const sender = config.senderName 
       ? `"${config.senderName}" <${config.user}>`
-      : config.user;
+      : `"E-Cell ABES" <${config.user}>`;
 
     const mailOptions = {
       from: sender,
