@@ -51,9 +51,6 @@ node server.js
 ```
 Open **`http://localhost:3000`** in your browser.
 
-### 3. Default Admin Credentials
-- **Password:** `admin123` (can be changed inside the portal anytime)
-
 ---
 
 ## 📧 Email & SMTP Setup (Google App Passwords)
