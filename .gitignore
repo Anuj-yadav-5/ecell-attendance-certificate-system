@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Sensitive Email / SMTP credentials & local database
+smtp_config.json
+database.json
+.env
+*.env
+
+# Logs & temp
+*.log
+.DS_Store
+Thumbs.db

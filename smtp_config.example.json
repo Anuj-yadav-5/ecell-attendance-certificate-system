@@ -1,0 +1,11 @@
+{
+  "provider": "gmail",
+  "host": "smtp.gmail.com",
+  "port": 587,
+  "user": "your_email@gmail.com",
+  "pass": "your_16_char_app_password",
+  "senderName": "E-Cell Official",
+  "senderEmail": "your_email@gmail.com",
+  "emailSubject": "Official Certificate of Participation - {eventTitle}",
+  "emailBody": "Dear {name},\n\nCongratulations on actively participating in \"{eventTitle}\".\n\nYour official Certificate of Participation from the Entrepreneurship Cell is attached.\n\nCertificate ID: {certificateNumber}\n\nBest Regards,\nEntrepreneurship Cell (E-Cell)"
+}
