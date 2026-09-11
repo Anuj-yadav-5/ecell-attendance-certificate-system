@@ -483,7 +483,9 @@ const App = {
 
   initAttendanceStep1() {
     const events = window.DataStore.getEvents();
+    const attendance = window.DataStore.getAttendance();
     const container = document.getElementById('eventsSelectorGrid');
+    const nextBtn = document.getElementById('wizardNextToStep2');
     if (!container) return;
 
     if (events.length === 0) {
@@ -497,40 +499,137 @@ const App = {
         </div>
       `;
       this.selectedEventId = null;
+      if (nextBtn) nextBtn.disabled = true;
       if (window.lucide) window.lucide.createIcons();
       return;
     }
 
-    if (!this.selectedEventId && events.length > 0) {
-      this.selectedEventId = events[0].id;
-    }
+    const markedEventIds = new Set(attendance.map(a => a.eventId));
+    const pendingEvents = events.filter(e => !markedEventIds.has(e.id));
+    const completedEvents = events.filter(e => markedEventIds.has(e.id));
 
-    container.innerHTML = events.map(evt => {
-      const isSelected = this.selectedEventId === evt.id;
-      const isMeeting = evt.type === 'meeting';
-      return `
-        <div class="event-select-card ${isSelected ? 'selected' : ''}" data-event-id="${evt.id}" onclick="App.selectEventForAttendance('${evt.id}')">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <span class="badge ${isMeeting ? 'badge-meeting' : 'badge-webinar'}">
-              ${isMeeting ? 'Meeting (No Cert)' : 'Webinar (Issues Certificate)'}
-            </span>
-            <span style="font-size:12px; color:var(--text-dim);">${evt.date}</span>
+    // If all events already have attendance marked
+    if (pendingEvents.length === 0) {
+      this.selectedEventId = null;
+      if (nextBtn) nextBtn.disabled = true;
+
+      container.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align:center; padding:32px 18px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md);">
+          <div style="width:50px; height:50px; border-radius:50%; background:rgba(16, 185, 129, 0.15); color:var(--success); display:flex; align-items:center; justify-content:center; margin:0 auto 12px;">
+            <i data-lucide="check-circle" style="width:26px; height:26px;"></i>
           </div>
-          <h3 style="font-size:15px; font-weight:700; margin-top:8px;">${evt.title}</h3>
-          <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">
-            <span><i data-lucide="clock" style="width:12px;height:12px;vertical-align:middle;"></i> ${evt.time || 'TBD'}</span>
-            <span style="margin-left:12px;"><i data-lucide="map-pin" style="width:12px;height:12px;vertical-align:middle;"></i> ${evt.location || 'Campus'}</span>
+          <h3 style="font-size:16px; font-weight:700; margin-bottom:6px; color:var(--text-main);">All Events Marked for Attendance</h3>
+          <p style="font-size:13px; color:var(--text-muted); max-width:520px; margin:0 auto 16px; line-height:1.5;">
+            All ${events.length} scheduled event(s) have attendance recorded and safely stored in the <strong>Attendance &amp; Certificate Logs</strong>.
+          </p>
+          <div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="App.navigateTo('history');">
+              <i data-lucide="clipboard-list"></i> View Logs &amp; Records
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('addEventModal').classList.add('active');">
+              <i data-lucide="plus"></i> Create New Event
+            </button>
           </div>
         </div>
+
+        ${completedEvents.length > 0 ? `
+          <div style="grid-column: 1 / -1; margin-top:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <h4 style="font-size:13.5px; font-weight:700; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+                <i data-lucide="check-check" style="width:16px; height:16px; color:var(--success);"></i>
+                Completed Event Records (${completedEvents.length})
+              </h4>
+              <button class="btn btn-sm btn-secondary" style="font-size:11.5px;" onclick="App.navigateTo('history');">
+                <i data-lucide="external-link"></i> Full Logs
+              </button>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
+              ${completedEvents.map(evt => {
+                const isMeeting = evt.type === 'meeting';
+                const evtRecords = attendance.filter(a => a.eventId === evt.id);
+                const presentCount = evtRecords.filter(a => a.status === 'Present').length;
+                return `
+                  <div class="card" style="margin-bottom:0; padding:14px; border:1px solid var(--border-color); background:var(--bg-card); opacity:0.95;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                      <span class="badge ${isMeeting ? 'badge-meeting' : 'badge-webinar'}">
+                        ${isMeeting ? 'Meeting' : 'Webinar'}
+                      </span>
+                      <span class="badge badge-status-present" style="font-size:11px;">✓ ${presentCount} Present</span>
+                    </div>
+                    <h4 style="font-size:14.5px; font-weight:700; margin-top:8px;">${evt.title}</h4>
+                    <p style="font-size:12px; color:var(--text-dim); margin-top:4px;">Date: ${evt.date}</p>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:8px; border-top:1px solid var(--border-color);">
+                      <button class="btn btn-sm btn-secondary" style="font-size:11px; padding:4px 8px;" onclick="App.showEventAttendanceDetails('${evt.id}_${evt.date}')">
+                        <i data-lucide="eye" style="width:12px; height:12px;"></i> View Records
+                      </button>
+                      <button class="btn btn-sm btn-outline" style="font-size:11px; padding:4px 8px; border:1px solid var(--border-color);" onclick="App.selectEventForAttendance('${evt.id}', true)">
+                        <i data-lucide="refresh-cw" style="width:11px; height:11px;"></i> Re-take
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
       `;
-    }).join('');
+
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+
+    if (nextBtn) nextBtn.disabled = false;
+
+    if (!this.selectedEventId || !pendingEvents.some(e => e.id === this.selectedEventId)) {
+      this.selectedEventId = pendingEvents[0].id;
+    }
+
+    container.innerHTML = `
+      ${pendingEvents.map(evt => {
+        const isSelected = this.selectedEventId === evt.id;
+        const isMeeting = evt.type === 'meeting';
+        return `
+          <div class="event-select-card ${isSelected ? 'selected' : ''}" data-event-id="${evt.id}" onclick="App.selectEventForAttendance('${evt.id}')">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <span class="badge ${isMeeting ? 'badge-meeting' : 'badge-webinar'}">
+                ${isMeeting ? 'Meeting (No Cert)' : 'Webinar (Issues Certificate)'}
+              </span>
+              <span style="font-size:12px; color:var(--text-dim);">${evt.date}</span>
+            </div>
+            <h3 style="font-size:15px; font-weight:700; margin-top:8px;">${evt.title}</h3>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">
+              <span><i data-lucide="clock" style="width:12px;height:12px;vertical-align:middle;"></i> ${evt.time || 'TBD'}</span>
+              <span style="margin-left:12px;"><i data-lucide="map-pin" style="width:12px;height:12px;vertical-align:middle;"></i> ${evt.location || 'Campus'}</span>
+            </div>
+          </div>
+        `;
+      }).join('')}
+
+      ${completedEvents.length > 0 ? `
+        <div style="grid-column: 1 / -1; margin-top:16px; padding-top:14px; border-top:1px solid var(--border-color);">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <span style="font-size:12px; color:var(--text-dim);">
+              <i data-lucide="check-circle" style="width:12px; height:12px; color:var(--success); vertical-align:middle;"></i>
+              ${completedEvents.length} event(s) already recorded &amp; saved in logs.
+            </span>
+            <button class="btn btn-sm btn-secondary" style="font-size:11px;" onclick="App.navigateTo('history');">
+              <i data-lucide="clipboard-list"></i> View History Logs &rarr;
+            </button>
+          </div>
+        </div>
+      ` : ''}
+    `;
 
     if (window.lucide) window.lucide.createIcons();
   },
 
-  selectEventForAttendance(evtId) {
+  selectEventForAttendance(evtId, allowCompleted = false) {
     this.selectedEventId = evtId;
-    this.initAttendanceStep1();
+    if (allowCompleted) {
+      this.goToWizardStep(2);
+    } else {
+      this.initAttendanceStep1();
+    }
   },
 
   initAttendanceStep2() {
@@ -673,11 +772,20 @@ const App = {
       return;
     }
 
+    // Save attendance batch to store & server
     window.DataStore.recordAttendanceBatch(event.id, presentIds, absentIds);
+
+    // Reset wizard selection so completed event is removed from Take Attendance step 1
+    this.selectedEventId = null;
+    this.attendanceSelections.clear();
 
     if (window.confetti) {
       window.confetti({ particleCount: 70, spread: 50 });
     }
+
+    // Immediately refresh views
+    this.renderDashboard();
+    this.renderEventsList();
 
     if (event.type === 'meeting') {
       this.showToast(`Attendance saved for ${presentIds.length} present members!`, 'success');
@@ -711,12 +819,13 @@ const App = {
       </div>
 
       <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button class="btn btn-secondary btn-sm" onclick="App.closeAllModals(); App.navigateTo('history');">View Logs</button>
+        <button class="btn btn-secondary btn-sm" onclick="App.closeAllModals(); App.navigateTo('history');"><i data-lucide="clipboard-list"></i> View Logs &amp; Records</button>
         <button class="btn btn-primary btn-sm" onclick="App.closeAllModals(); App.navigateTo('dashboard');">Done</button>
       </div>
     `;
 
     modal.classList.add('active');
+    if (window.lucide) window.lucide.createIcons();
   },
 
   // --- REAL EMAIL DISPATCH TO ALL ATTENDING MEMBERS ---
@@ -750,7 +859,8 @@ const App = {
       </div>
 
       <div style="display:flex; justify-content:flex-end; gap:10px;">
-        <button class="btn btn-secondary btn-sm" id="btnPipelineClose" disabled onclick="App.closeAllModals(); App.navigateTo('history');">View Certificate Logs</button>
+        <button class="btn btn-secondary btn-sm" id="btnPipelineClose" disabled onclick="App.closeAllModals(); App.navigateTo('history');"><i data-lucide="clipboard-list"></i> View Logs &amp; Records</button>
+        <button class="btn btn-primary btn-sm" id="btnPipelineDone" disabled onclick="App.closeAllModals(); App.navigateTo('dashboard');">Done</button>
       </div>
     `;
 
@@ -758,6 +868,7 @@ const App = {
     const statusText = document.getElementById('pipelineStatusText');
     const logList = document.getElementById('pipelineLogList');
     const closeBtn = document.getElementById('btnPipelineClose');
+    const doneBtn = document.getElementById('btnPipelineDone');
 
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = 1200;
@@ -837,6 +948,11 @@ const App = {
     
     logList.scrollTop = logList.scrollHeight;
     if (closeBtn) closeBtn.removeAttribute('disabled');
+    if (doneBtn) doneBtn.removeAttribute('disabled');
+    this.renderDashboard();
+    this.renderEventsList();
+    this.renderHistoryTable();
+    if (window.lucide) window.lucide.createIcons();
     if (window.confetti && successCount > 0) window.confetti({ particleCount: 100, spread: 70 });
   },
 
@@ -1169,6 +1285,7 @@ const App = {
 
   renderEventsList(filter = 'All') {
     const events = window.DataStore.getEvents();
+    const attendance = window.DataStore.getAttendance();
     const container = document.getElementById('eventsListContainer');
     if (!container) return;
 
@@ -1186,38 +1303,73 @@ const App = {
       return;
     }
 
+    const markedEventIds = new Set(attendance.map(a => a.eventId));
+
     const filtered = events.filter(e => {
       if (filter === 'meeting') return e.type === 'meeting';
       if (filter === 'webinar') return e.type === 'webinar_event';
+      if (filter === 'pending') return !markedEventIds.has(e.id);
+      if (filter === 'completed') return markedEventIds.has(e.id);
       return true;
     });
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="card" style="text-align:center; padding:30px 14px; color:var(--text-muted);">
+          <p style="font-weight:600; font-size:14px;">No events matching filter "${filter}"</p>
+        </div>
+      `;
+      return;
+    }
 
     container.innerHTML = filtered.map(evt => {
       const isMeeting = evt.type === 'meeting';
       const hasCustomCert = !!evt.certificateTemplate?.bgImage;
+      const isCompleted = markedEventIds.has(evt.id);
+      const evtAttendance = attendance.filter(a => a.eventId === evt.id);
+      const presentCount = evtAttendance.filter(a => a.status === 'Present').length;
+
       return `
         <div class="card" style="margin-bottom:14px; padding:16px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
             <div>
-              <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap;">
                 <span class="badge ${isMeeting ? 'badge-meeting' : 'badge-webinar'}">
                   ${isMeeting ? 'Meeting (No Cert)' : 'Webinar (Issues Certificate)'}
                 </span>
+                ${isCompleted ? `
+                  <span class="badge badge-status-present" style="font-size:11px;">
+                    ✓ Attendance Logged (${presentCount} Present / ${evtAttendance.length} Total)
+                  </span>
+                ` : `
+                  <span class="badge" style="font-size:11px; background:rgba(234, 179, 8, 0.15); color:var(--warning); border:1px solid rgba(234, 179, 8, 0.3);">
+                    ⏳ Pending Attendance
+                  </span>
+                `}
                 ${!isMeeting && hasCustomCert ? '<span class="badge badge-status-present" style="font-size:11px;">✓ Custom Template</span>' : ''}
                 <span style="font-size:12px; color:var(--text-dim);">${evt.date}</span>
               </div>
               <h3 style="font-size:15px; font-weight:700;">${evt.title}</h3>
               <p style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">${evt.description || ''}</p>
             </div>
-            <div style="display:flex; gap:6px;">
+            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
               ${!isMeeting ? `
                 <button class="btn btn-sm btn-secondary" onclick="App.openStudioForEvent('${evt.id}')" title="Upload/Customize certificate template for this event">
-                  <i data-lucide="palette"></i> Certificate Template
+                  <i data-lucide="palette"></i> Template
                 </button>
               ` : ''}
-              <button class="btn btn-sm btn-primary" onclick="App.startAttendanceForEvent('${evt.id}')">
-                <i data-lucide="check-square"></i> Mark Attendance
-              </button>
+              ${isCompleted ? `
+                <button class="btn btn-sm btn-secondary" onclick="App.showEventAttendanceDetails('${evt.id}_${evt.date}')" title="View attendance records in log">
+                  <i data-lucide="clipboard-list"></i> View Records
+                </button>
+                <button class="btn btn-sm btn-outline" style="font-size:11.5px; border:1px solid var(--border-color);" onclick="App.startAttendanceForEvent('${evt.id}')" title="Re-take or update attendance">
+                  <i data-lucide="refresh-cw" style="width:12px; height:12px;"></i> Re-take
+                </button>
+              ` : `
+                <button class="btn btn-sm btn-primary" onclick="App.startAttendanceForEvent('${evt.id}')">
+                  <i data-lucide="check-square"></i> Mark Attendance
+                </button>
+              `}
               <button class="btn-icon" title="Delete" onclick="App.deleteEvent('${evt.id}')" style="color:var(--danger); width:32px; height:32px;">
                 <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
               </button>
@@ -1383,9 +1535,14 @@ const App = {
           </span>
         </td>
         <td style="text-align:center;">
-          <button class="btn btn-sm btn-danger" title="Delete this attendance session" onclick="App.deleteEventAttendanceSession('${ev.eventId}', '${ev.date}', '${ev.eventTitle.replace(/'/g, "\\'")}')">
-            <i data-lucide="trash-2"></i> Delete
-          </button>
+          <div style="display:flex; justify-content:center; gap:6px;">
+            <button class="btn btn-sm btn-secondary" style="font-size:11.5px; padding:4px 8px;" title="View attendee details" onclick="App.showEventAttendanceDetails('${ev.eventId}_${ev.date}')">
+              <i data-lucide="eye" style="width:12px; height:12px;"></i> View
+            </button>
+            <button class="btn btn-sm btn-danger" style="font-size:11.5px; padding:4px 8px;" title="Delete this attendance session" onclick="App.deleteEventAttendanceSession('${ev.eventId}', '${ev.date}', '${ev.eventTitle.replace(/'/g, "\\'")}')">
+              <i data-lucide="trash-2" style="width:12px; height:12px;"></i>
+            </button>
+          </div>
         </td>
       </tr>
     `).join('');

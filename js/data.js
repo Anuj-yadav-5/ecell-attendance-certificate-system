@@ -9,7 +9,8 @@ const STORAGE_KEYS = {
   ATTENDANCE: 'ecell_attendance_v3',
   CERTIFICATES: 'ecell_certificates_v3',
   TEMPLATE_CONFIG: 'ecell_template_config_v3',
-  ADMIN_PASSWORD: 'ecell_admin_pwd_v1'
+  ADMIN_PASSWORD: 'ecell_admin_pwd_v1',
+  DELETED_LOG: 'ecell_deleted_records_v1'
 };
 
 const DEFAULT_TEMPLATE_CONFIG = {
@@ -50,6 +51,25 @@ class ECellDataStore {
     }
   }
 
+  getDeletedLog() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_LOG) || '{"members":[],"events":[],"sessions":[],"certs":[]}');
+    } catch(e) {
+      return { members: [], events: [], sessions: [], certs: [] };
+    }
+  }
+
+  trackDeleted(type, idOrKey) {
+    const log = this.getDeletedLog();
+    if (!log[type]) log[type] = [];
+    if (!log[type].includes(idOrKey)) {
+      log[type].push(idOrKey);
+      // Keep last 200 deleted keys
+      if (log[type].length > 200) log[type].shift();
+      localStorage.setItem(STORAGE_KEYS.DELETED_LOG, JSON.stringify(log));
+    }
+  }
+
   async syncWithServer() {
     try {
       const res = await fetch('/api/data');
@@ -62,39 +82,116 @@ class ECellDataStore {
       const localEvents = this.getEvents();
       const localAttendance = this.getAttendance();
       const localCerts = this.getCertificates();
+      const localTemplate = this.getTemplateConfig();
+      const deletedLog = this.getDeletedLog();
 
-      const serverHasData = (serverData.members && serverData.members.length > 0) ||
-                            (serverData.events && serverData.events.length > 0) ||
-                            (serverData.attendance && serverData.attendance.length > 0) ||
-                            (serverData.certificates && serverData.certificates.length > 0);
-
-      const localHasData = localMembers.length > 0 || localEvents.length > 0 || localAttendance.length > 0 || localCerts.length > 0;
-
-      // If server is fresh/empty but local has data, upload local data to server
-      if (!serverHasData && localHasData) {
-        await this.pushToServer();
-        return;
-      }
-
-      // Otherwise, update local storage with server data
-      if (serverData.adminPassword) {
-        localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, serverData.adminPassword);
-      }
+      // 1. Merge Members (Union preserving local and server)
+      const memberMap = new Map();
       if (Array.isArray(serverData.members)) {
-        localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(serverData.members));
+        serverData.members.forEach(m => {
+          if (m && (m.id || m.memberId) && !deletedLog.members.includes(m.id)) {
+            memberMap.set(m.id || m.memberId, m);
+          }
+        });
       }
+      localMembers.forEach(m => {
+        if (m && (m.id || m.memberId)) {
+          memberMap.set(m.id || m.memberId, m);
+        }
+      });
+      const mergedMembers = Array.from(memberMap.values());
+
+      // 2. Merge Events
+      const eventMap = new Map();
       if (Array.isArray(serverData.events)) {
-        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(serverData.events));
+        serverData.events.forEach(e => {
+          if (e && e.id && !deletedLog.events.includes(e.id)) {
+            eventMap.set(e.id, e);
+          }
+        });
       }
+      localEvents.forEach(e => {
+        if (e && e.id) {
+          eventMap.set(e.id, e);
+        }
+      });
+      const mergedEvents = Array.from(eventMap.values());
+
+      // 3. Merge Attendance Records
+      const attMap = new Map();
       if (Array.isArray(serverData.attendance)) {
-        localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(serverData.attendance));
+        serverData.attendance.forEach(r => {
+          if (r && r.eventId && r.memberId) {
+            const key = `${r.eventId}_${r.date}_${r.memberId}`;
+            const sessionKey = `${r.eventId}_${r.date}`;
+            if (!deletedLog.sessions.includes(sessionKey)) {
+              attMap.set(key, r);
+            }
+          }
+        });
       }
+      localAttendance.forEach(r => {
+        if (r && r.eventId && r.memberId) {
+          const key = `${r.eventId}_${r.date}_${r.memberId}`;
+          attMap.set(key, r);
+        }
+      });
+      const mergedAttendance = Array.from(attMap.values());
+
+      // 4. Merge Certificates
+      const certMap = new Map();
       if (Array.isArray(serverData.certificates)) {
-        localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(serverData.certificates));
+        serverData.certificates.forEach(c => {
+          if (c && (c.id || c.certificateNumber) && !deletedLog.certs.includes(c.id)) {
+            certMap.set(c.id || c.certificateNumber, c);
+          }
+        });
       }
-      if (serverData.templateConfig) {
-        localStorage.setItem(STORAGE_KEYS.TEMPLATE_CONFIG, JSON.stringify(serverData.templateConfig));
+      localCerts.forEach(c => {
+        if (c && (c.id || c.certificateNumber)) {
+          certMap.set(c.id || c.certificateNumber, c);
+        }
+      });
+      const mergedCerts = Array.from(certMap.values());
+
+      // 5. Merge Template Config
+      const mergedTemplate = {
+        ...DEFAULT_TEMPLATE_CONFIG,
+        ...(serverData.templateConfig || {}),
+        ...(localTemplate || {})
+      };
+      if (localTemplate && localTemplate.bgImage) {
+        mergedTemplate.bgImage = localTemplate.bgImage;
+      } else if (serverData.templateConfig && serverData.templateConfig.bgImage) {
+        mergedTemplate.bgImage = serverData.templateConfig.bgImage;
       }
+
+      // 6. Admin Password
+      const mergedAdminPwd = (serverData.adminPassword && serverData.adminPassword !== 'admin123')
+        ? serverData.adminPassword
+        : this.getAdminPassword();
+
+      // Save complete merged dataset to LocalStorage
+      localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(mergedMembers));
+      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(mergedEvents));
+      localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(mergedAttendance));
+      localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(mergedCerts));
+      localStorage.setItem(STORAGE_KEYS.TEMPLATE_CONFIG, JSON.stringify(mergedTemplate));
+      localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, mergedAdminPwd);
+
+      // Always push the complete synchronized state back to server
+      await fetch('/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminPassword: mergedAdminPwd,
+          members: mergedMembers,
+          events: mergedEvents,
+          attendance: mergedAttendance,
+          certificates: mergedCerts,
+          templateConfig: mergedTemplate
+        })
+      });
 
       window.dispatchEvent(new CustomEvent('ecell_data_synced'));
     } catch (e) {
@@ -104,13 +201,14 @@ class ECellDataStore {
 
   async pushToServer(partial = null) {
     try {
-      const payload = partial || {
+      const payload = {
         adminPassword: this.getAdminPassword(),
         members: this.getMembers(),
         events: this.getEvents(),
         attendance: this.getAttendance(),
         certificates: this.getCertificates(),
-        templateConfig: this.getTemplateConfig()
+        templateConfig: this.getTemplateConfig(),
+        ...(partial || {})
       };
 
       await fetch('/api/data', {
@@ -191,8 +289,9 @@ class ECellDataStore {
   }
 
   deleteMember(id) {
+    this.trackDeleted('members', id);
     let members = this.getMembers();
-    members = members.filter(m => m.id !== id);
+    members = members.filter(m => m.id !== id && m.memberId !== id);
     this.saveMembers(members);
   }
 
@@ -219,6 +318,7 @@ class ECellDataStore {
   }
 
   deleteEvent(id) {
+    this.trackDeleted('events', id);
     let events = this.getEvents();
     events = events.filter(e => e.id !== id);
     this.saveEvents(events);
@@ -371,12 +471,14 @@ class ECellDataStore {
   }
 
   deleteAttendanceSession(eventId, date) {
+    this.trackDeleted('sessions', `${eventId}_${date}`);
     let attendance = this.getAttendance();
     attendance = attendance.filter(r => !(r.eventId === eventId && r.date === date));
     this.saveAttendance(attendance);
   }
 
   deleteCertificate(certId) {
+    this.trackDeleted('certs', certId);
     let certs = this.getCertificates();
     certs = certs.filter(c => c.id !== certId);
     this.saveCertificates(certs);

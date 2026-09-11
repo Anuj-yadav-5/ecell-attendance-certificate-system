@@ -27,6 +27,14 @@ function getDatabase() {
       console.error('Error reading database.json:', e);
     }
   }
+  const rootDb = path.join(__dirname, 'database.json');
+  if (DB_FILE !== rootDb && fs.existsSync(rootDb)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(rootDb, 'utf8'));
+      saveDatabase(data);
+      return data;
+    } catch (e) {}
+  }
   return {
     adminPassword: 'admin123',
     members: [],
