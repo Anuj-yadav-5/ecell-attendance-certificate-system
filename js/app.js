@@ -1009,12 +1009,16 @@ const App = {
     });
 
     const bindSlider = (id, key, parseFn = parseInt) => {
-      document.getElementById(id)?.addEventListener('input', (e) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const handler = (e) => {
         const config = window.DataStore.getEventTemplateConfig(this.selectedStudioEventId);
         config[key] = parseFn(e.target.value);
         window.DataStore.saveEventTemplateConfig(this.selectedStudioEventId, config);
         this.renderStudioPreview();
-      });
+      };
+      el.addEventListener('input', handler);
+      el.addEventListener('change', handler);
     };
 
     bindSlider('sliderNameX', 'nameX');

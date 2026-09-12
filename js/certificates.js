@@ -51,6 +51,13 @@ class ECellCertificateEngine {
     }
 
     // 2. Draw Dynamic Member Name
+    if (document.fonts && document.fonts.load) {
+      try {
+        await document.fonts.load(`${fontWeight} ${nameFontSize}px "${fontFamily}"`);
+        await document.fonts.ready;
+      } catch (e) {}
+    }
+
     ctx.save();
     ctx.fillStyle = nameColor;
     ctx.font = `${fontWeight} ${nameFontSize}px "${fontFamily}", "Poppins", "Plus Jakarta Sans", sans-serif`;
