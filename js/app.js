@@ -2048,5 +2048,118 @@ const App = {
       toast.style.transition = 'opacity 0.2s';
       setTimeout(() => toast.remove(), 200);
     }, 4000);
+  },
+
+  openDatabaseConfigModal() {
+    const modal = document.getElementById('databaseConfigModal');
+    if (!modal) return;
+
+    const input = document.getElementById('firebaseConfigInput');
+    const badge = document.getElementById('modalSyncEngineBadge');
+
+    if (window.FirebaseSync && window.FirebaseSync.isInitialized) {
+      if (badge) {
+        badge.textContent = '🟢 Firebase Real-Time Cloud (Active)';
+        badge.style.color = '#10b981';
+        badge.style.background = 'rgba(16,185,129,0.12)';
+      }
+    } else {
+      if (badge) {
+        badge.textContent = '⚡ Server & Local Auto-Sync (Active)';
+        badge.style.color = '#818cf8';
+        badge.style.background = 'rgba(99,102,241,0.12)';
+      }
+    }
+
+    if (input && window.FirebaseSync) {
+      const currentConfig = window.FirebaseSync.getSavedConfig();
+      if (currentConfig) {
+        input.value = JSON.stringify(currentConfig, null, 2);
+      } else {
+        input.value = '';
+      }
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+    modal.classList.add('active');
+  },
+
+  saveFirebaseConfig() {
+    const input = document.getElementById('firebaseConfigInput');
+    if (!input) return;
+    const raw = input.value.trim();
+
+    if (!raw) {
+      if (window.FirebaseSync) {
+        window.FirebaseSync.saveConfig(null);
+      }
+      this.showToast('Reverted to Server & Local DB sync.', 'info');
+      this.closeAllModals();
+      return;
+    }
+
+    try {
+      let parsed = null;
+      if (raw.startsWith('{') && raw.endsWith('}')) {
+        parsed = JSON.parse(raw);
+      } else {
+        const apiKeyMatch = raw.match(/apiKey:\s*["']([^"']+)["']/);
+        const projectIdMatch = raw.match(/projectId:\s*["']([^"']+)["']/);
+        const authDomainMatch = raw.match(/authDomain:\s*["']([^"']+)["']/);
+        const storageBucketMatch = raw.match(/storageBucket:\s*["']([^"']+)["']/);
+        const messagingSenderIdMatch = raw.match(/messagingSenderId:\s*["']([^"']+)["']/);
+        const appIdMatch = raw.match(/appId:\s*["']([^"']+)["']/);
+
+        if (apiKeyMatch && projectIdMatch) {
+          parsed = {
+            apiKey: apiKeyMatch[1],
+            projectId: projectIdMatch[1],
+            authDomain: authDomainMatch ? authDomainMatch[1] : `${projectIdMatch[1]}.firebaseapp.com`,
+            storageBucket: storageBucketMatch ? storageBucketMatch[1] : `${projectIdMatch[1]}.appspot.com`,
+            messagingSenderId: messagingSenderIdMatch ? messagingSenderIdMatch[1] : "",
+            appId: appIdMatch ? appIdMatch[1] : ""
+          };
+        }
+      }
+
+      if (!parsed || !parsed.apiKey || !parsed.projectId) {
+        this.showToast('Invalid Firebase configuration format. Please verify your keys.', 'error');
+        return;
+      }
+
+      if (window.FirebaseSync) {
+        window.FirebaseSync.saveConfig(parsed);
+      }
+      this.showToast('🔥 Firebase Cloud Database connected & syncing!', 'success');
+      this.closeAllModals();
+    } catch (err) {
+      this.showToast('Failed to parse Firebase config: ' + err.message, 'error');
+    }
+  },
+
+  exportDatabaseBackup() {
+    if (!window.dataStore) return;
+    const data = window.dataStore.getFullDatabasePayload();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ecell_attendance_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    this.showToast('Database backup downloaded successfully.', 'success');
+  },
+
+  async forceTriggerServerSync() {
+    if (window.dataStore && typeof window.dataStore.syncWithServer === 'function') {
+      this.showToast('Synchronizing with database...', 'info');
+      await window.dataStore.syncWithServer();
+      this.showToast('Database synchronized.', 'success');
+      this.renderDashboard();
+      this.renderMembersTable();
+      this.renderEventsList();
+    }
   }
 };

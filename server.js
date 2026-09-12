@@ -66,8 +66,32 @@ function saveDatabase(data) {
 
 // 0. GET FULL SHARED DATABASE
 app.get('/api/data', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   const db = getDatabase();
   res.json({ success: true, data: db });
+});
+
+// GET FIREBASE CONFIG (FROM VERCEL ENVIRONMENT VARIABLES)
+app.get('/api/firebase-config', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  let config = null;
+  if (process.env.FIREBASE_CONFIG) {
+    try {
+      config = JSON.parse(process.env.FIREBASE_CONFIG);
+    } catch(e) {}
+  } else if (process.env.FIREBASE_API_KEY && process.env.FIREBASE_PROJECT_ID) {
+    config = {
+      apiKey: process.env.FIREBASE_API_KEY,
+      authDomain: process.env.FIREBASE_AUTH_DOMAIN || `${process.env.FIREBASE_PROJECT_ID}.firebaseapp.com`,
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.appspot.com`,
+      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "",
+      appId: process.env.FIREBASE_APP_ID || ""
+    };
+  }
+  res.json({ success: true, isConfigured: !!config, config });
 });
 
 // 0. POST / UPDATE SHARED DATABASE
@@ -306,7 +330,7 @@ app.post('/api/send-certificate-email', async (req, res) => {
           <!-- SIGNATURE -->
           <div style="margin-top: 22px; padding-top: 14px; border-top: 1px solid #f1f5f9; font-size: 13px; color: #64748b;">
             <p style="margin: 0; font-weight: 600; color: #0f172a;">Warm regards,</p>
-            <p style="margin: 2px 0 0; font-weight: 700; color: #b45309; font-size: 14px;">Team E-Cell ABES</p>
+            <p style="margin: 2px 0 0; font-weight: 700; color: #b45309; font-size: 14px;">Team Executives</p>
             <p style="margin: 0; font-size: 11.5px; color: #94a3b8;">Entrepreneurship Cell, ABES EC</p>
           </div>
         </div>

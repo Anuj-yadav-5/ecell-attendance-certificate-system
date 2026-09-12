@@ -16,8 +16,12 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 
+  <!-- Firebase App & Firestore Cloud Database SDK (Free Spark Tier) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="/css/style.css?v=2.2" />
+  <link rel="stylesheet" href="/css/style.css?v=2.3" />
 </head>
 <body>
 
@@ -106,10 +110,14 @@
           <span>Logs & Records</span>
         </a>
 
-        <div class="nav-section-title">Tools</div>
+        <div class="nav-section-title">Tools &amp; Database</div>
         <a class="nav-link" data-view="verify">
           <i data-lucide="shield-check"></i>
           <span>Verify Certificate</span>
+        </a>
+        <a class="nav-link" href="javascript:void(0)" onclick="App.openDatabaseConfigModal()">
+          <i data-lucide="database"></i>
+          <span>Cloud Database</span>
         </a>
       </nav>
 
@@ -137,7 +145,13 @@
           <h2 class="page-title" id="topbarPageTitle">Executive Dashboard</h2>
         </div>
 
-        <div class="topbar-actions">
+        <div class="topbar-actions" style="display:flex; align-items:center; gap:8px;">
+          <!-- Live Cloud Database Status Badge -->
+          <div id="cloudSyncStatusBadge" class="cloud-sync-badge status-local" onclick="App.openDatabaseConfigModal()" title="Real-Time Cloud Sync Status">
+            <span class="sync-dot"></span>
+            <span id="cloudSyncStatusText">Local / Server</span>
+          </div>
+
           <button class="btn-icon" id="themeToggleBtn" title="Toggle Light / Dark">
             <i data-lucide="sun-moon"></i>
           </button>
@@ -884,12 +898,70 @@
     </div>
   </div>
 
+  <!-- MODAL: CLOUD DATABASE CONFIGURATION & REALTIME SYNC -->
+  <div class="modal-overlay" id="databaseConfigModal">
+    <div class="modal-container" style="max-width:540px;">
+      <div class="modal-header">
+        <h3 class="card-title"><i data-lucide="database"></i> Cloud Database &amp; Multi-Device Sync</h3>
+        <button class="btn-icon" onclick="App.closeAllModals()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--bg-subtle); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:14px; margin-bottom:16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <span style="font-size:13px; font-weight:700; color:var(--text-main);">Current Sync Engine:</span>
+            <span id="modalSyncEngineBadge" style="font-size:12px; font-weight:700; color:var(--accent-gold); padding:2px 10px; background:rgba(245,158,11,0.12); border-radius:var(--radius-full);">Checking...</span>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); line-height:1.5;">
+            By connecting a <strong>100% Free Firebase Firestore</strong> database, any member, event, or attendance update made in Chrome, Brave, mobile, or anywhere else syncs <strong>instantly in real time</strong> without page reloads!
+          </p>
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+            <span><i data-lucide="key"></i> Firebase Config Object (JSON / JS)</span>
+            <a href="https://console.firebase.google.com/" target="_blank" rel="noopener" style="font-size:11.5px; color:var(--accent-gold); text-decoration:underline;">Open Firebase Console (Free) &rarr;</a>
+          </label>
+          <textarea id="firebaseConfigInput" class="form-control" rows="5" placeholder='Paste your Firebase config here, e.g.
+{
+  "apiKey": "AIzaSy...",
+  "authDomain": "my-project.firebaseapp.com",
+  "projectId": "my-project",
+  "storageBucket": "my-project.appspot.com",
+  "messagingSenderId": "...",
+  "appId": "..."
+}' style="font-family:monospace; font-size:12px;"></textarea>
+          <span style="font-size:11px; color:var(--text-dim); display:block; margin-top:4px;">
+            💡 <strong>Quick Setup:</strong> 1. Go to Firebase Console &rarr; 2. Create a Free Project &rarr; 3. Add Web App &amp; copy config &rarr; 4. Click Firestore Database &rarr; Create Database in Test Mode.
+          </span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:18px;">
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="App.exportDatabaseBackup()" title="Download JSON copy of all members and events">
+              <i data-lucide="download"></i> Backup JSON
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="App.forceTriggerServerSync()" title="Force pull from server API">
+              <i data-lucide="refresh-cw"></i> Force Sync
+            </button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" onclick="App.closeAllModals()">Close</button>
+            <button class="btn btn-primary" onclick="App.saveFirebaseConfig()">
+              <i data-lucide="save"></i> Connect &amp; Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notifications -->
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="/js/data.js?v=2.2"></script>
-  <script src="/js/certificates.js?v=2.2"></script>
-  <script src="/js/app.js?v=2.2"></script>
+  <script src="/js/firebase-config.js?v=2.3"></script>
+  <script src="/js/data.js?v=2.3"></script>
+  <script src="/js/certificates.js?v=2.3"></script>
+  <script src="/js/app.js?v=2.3"></script>
 </body>
 </html>

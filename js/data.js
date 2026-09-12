@@ -1,6 +1,6 @@
 /**
  * E-Cell Attendance & Certificate System
- * Data Store & Central Server Sync Management
+ * Universal Real-Time Data Store & Multi-Device Cloud Sync
  */
 
 const STORAGE_KEYS = {
@@ -10,7 +10,8 @@ const STORAGE_KEYS = {
   CERTIFICATES: 'ecell_certificates_v3',
   TEMPLATE_CONFIG: 'ecell_template_config_v3',
   ADMIN_PASSWORD: 'ecell_admin_pwd_v1',
-  DELETED_LOG: 'ecell_deleted_records_v1'
+  DELETED_LOG: 'ecell_deleted_records_v1',
+  LAST_SERVER_SYNC: 'ecell_last_sync_v1'
 };
 
 const DEFAULT_TEMPLATE_CONFIG = {
@@ -24,10 +25,56 @@ const DEFAULT_TEMPLATE_CONFIG = {
   textAlign: 'center'
 };
 
+// Initial Seed Members if completely new device
+const SEED_MEMBERS = [
+  {
+    name: "Anuj Yadav",
+    email: "anujyadav0105@gmail.com",
+    collegeDept: "CSE",
+    year: "2nd Year",
+    ecellDept: "Digital Infrastructure and Development",
+    status: "Active",
+    joinedDate: "2026-09-11",
+    id: "m_1789102371358",
+    memberId: "EC001",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Anuj%20Yadav"
+  },
+  {
+    name: "Anurag",
+    email: "asrivastava8957@gmail.com",
+    collegeDept: "CSE",
+    year: "2nd Year",
+    ecellDept: "Digital Infrastructure and Development",
+    status: "Active",
+    joinedDate: "2026-09-11",
+    id: "m_1789102413363",
+    memberId: "EC002",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Anurag"
+  },
+  {
+    name: "Abhay",
+    email: "anuj425x@gmail.com",
+    collegeDept: "CSE",
+    year: "2nd Year",
+    ecellDept: "Digital Infrastructure and Development",
+    status: "Active",
+    joinedDate: "2026-09-11",
+    id: "m_1789102441045",
+    memberId: "EC003",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Abhay"
+  }
+];
+
 class ECellDataStore {
   constructor() {
+    this.isSyncing = false;
     this.init();
     this.syncWithServer();
+    
+    // Background polling every 4 seconds to sync across browsers/devices even without Firebase
+    this.pollInterval = setInterval(() => {
+      this.syncWithServer();
+    }, 4000);
   }
 
   init() {
@@ -35,7 +82,7 @@ class ECellDataStore {
       localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, 'admin123');
     }
     if (!localStorage.getItem(STORAGE_KEYS.MEMBERS)) {
-      localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(SEED_MEMBERS));
     }
     if (!localStorage.getItem(STORAGE_KEYS.EVENTS)) {
       localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify([]));
@@ -64,18 +111,75 @@ class ECellDataStore {
     if (!log[type]) log[type] = [];
     if (!log[type].includes(idOrKey)) {
       log[type].push(idOrKey);
-      // Keep last 200 deleted keys
-      if (log[type].length > 200) log[type].shift();
+      if (log[type].length > 300) log[type].shift();
       localStorage.setItem(STORAGE_KEYS.DELETED_LOG, JSON.stringify(log));
     }
   }
 
+  getFullDatabasePayload() {
+    return {
+      adminPassword: this.getAdminPassword(),
+      members: this.getMembers(),
+      events: this.getEvents(),
+      attendance: this.getAttendance(),
+      certificates: this.getCertificates(),
+      templateConfig: this.getTemplateConfig(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  applyCloudUpdate(cloudData) {
+    if (!cloudData || typeof cloudData !== 'object') return;
+
+    let hasChanged = false;
+    const currentMembers = JSON.stringify(this.getMembers());
+    const currentEvents = JSON.stringify(this.getEvents());
+    const currentAttendance = JSON.stringify(this.getAttendance());
+    const currentCerts = JSON.stringify(this.getCertificates());
+
+    if (Array.isArray(cloudData.members) && JSON.stringify(cloudData.members) !== currentMembers) {
+      localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(cloudData.members));
+      hasChanged = true;
+    }
+    if (Array.isArray(cloudData.events) && JSON.stringify(cloudData.events) !== currentEvents) {
+      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(cloudData.events));
+      hasChanged = true;
+    }
+    if (Array.isArray(cloudData.attendance) && JSON.stringify(cloudData.attendance) !== currentAttendance) {
+      localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(cloudData.attendance));
+      hasChanged = true;
+    }
+    if (Array.isArray(cloudData.certificates) && JSON.stringify(cloudData.certificates) !== currentCerts) {
+      localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(cloudData.certificates));
+      hasChanged = true;
+    }
+    if (cloudData.templateConfig && typeof cloudData.templateConfig === 'object') {
+      localStorage.setItem(STORAGE_KEYS.TEMPLATE_CONFIG, JSON.stringify(cloudData.templateConfig));
+    }
+    if (cloudData.adminPassword && cloudData.adminPassword !== 'admin123') {
+      localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, cloudData.adminPassword);
+    }
+
+    if (hasChanged) {
+      window.dispatchEvent(new CustomEvent('ecell_data_synced', { detail: { source: 'cloud' } }));
+    }
+  }
+
   async syncWithServer() {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
+
     try {
-      const res = await fetch('/api/data');
-      if (!res.ok) return;
+      const res = await fetch('/api/data', { cache: 'no-store' });
+      if (!res.ok) {
+        this.isSyncing = false;
+        return;
+      }
       const json = await res.json();
-      if (!json.success || !json.data) return;
+      if (!json.success || !json.data) {
+        this.isSyncing = false;
+        return;
+      }
 
       const serverData = json.data;
       const localMembers = this.getMembers();
@@ -95,7 +199,7 @@ class ECellDataStore {
         });
       }
       localMembers.forEach(m => {
-        if (m && (m.id || m.memberId)) {
+        if (m && (m.id || m.memberId) && !deletedLog.members.includes(m.id)) {
           memberMap.set(m.id || m.memberId, m);
         }
       });
@@ -111,7 +215,7 @@ class ECellDataStore {
         });
       }
       localEvents.forEach(e => {
-        if (e && e.id) {
+        if (e && e.id && !deletedLog.events.includes(e.id)) {
           eventMap.set(e.id, e);
         }
       });
@@ -133,7 +237,10 @@ class ECellDataStore {
       localAttendance.forEach(r => {
         if (r && r.eventId && r.memberId) {
           const key = `${r.eventId}_${r.date}_${r.memberId}`;
-          attMap.set(key, r);
+          const sessionKey = `${r.eventId}_${r.date}`;
+          if (!deletedLog.sessions.includes(sessionKey)) {
+            attMap.set(key, r);
+          }
         }
       });
       const mergedAttendance = Array.from(attMap.values());
@@ -148,7 +255,7 @@ class ECellDataStore {
         });
       }
       localCerts.forEach(c => {
-        if (c && (c.id || c.certificateNumber)) {
+        if (c && (c.id || c.certificateNumber) && !deletedLog.certs.includes(c.id)) {
           certMap.set(c.id || c.certificateNumber, c);
         }
       });
@@ -171,6 +278,11 @@ class ECellDataStore {
         ? serverData.adminPassword
         : this.getAdminPassword();
 
+      const membersChanged = JSON.stringify(mergedMembers) !== JSON.stringify(localMembers);
+      const eventsChanged = JSON.stringify(mergedEvents) !== JSON.stringify(localEvents);
+      const attendanceChanged = JSON.stringify(mergedAttendance) !== JSON.stringify(localAttendance);
+      const certsChanged = JSON.stringify(mergedCerts) !== JSON.stringify(localCerts);
+
       // Save complete merged dataset to LocalStorage
       localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(mergedMembers));
       localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(mergedEvents));
@@ -179,46 +291,45 @@ class ECellDataStore {
       localStorage.setItem(STORAGE_KEYS.TEMPLATE_CONFIG, JSON.stringify(mergedTemplate));
       localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, mergedAdminPwd);
 
-      // Always push the complete synchronized state back to server
-      await fetch('/api/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminPassword: mergedAdminPwd,
-          members: mergedMembers,
-          events: mergedEvents,
-          attendance: mergedAttendance,
-          certificates: mergedCerts,
-          templateConfig: mergedTemplate
-        })
-      });
-
-      window.dispatchEvent(new CustomEvent('ecell_data_synced'));
+      if (membersChanged || eventsChanged || attendanceChanged || certsChanged) {
+        window.dispatchEvent(new CustomEvent('ecell_data_synced', { detail: { source: 'server' } }));
+      }
     } catch (e) {
-      console.warn('Server sync skipped/offline:', e);
+      // Server offline or static mode - perfectly fine
+    } finally {
+      this.isSyncing = false;
     }
   }
 
   async pushToServer(partial = null) {
-    try {
-      const payload = {
-        adminPassword: this.getAdminPassword(),
-        members: this.getMembers(),
-        events: this.getEvents(),
-        attendance: this.getAttendance(),
-        certificates: this.getCertificates(),
-        templateConfig: this.getTemplateConfig(),
-        ...(partial || {})
-      };
+    const payload = {
+      adminPassword: this.getAdminPassword(),
+      members: this.getMembers(),
+      events: this.getEvents(),
+      attendance: this.getAttendance(),
+      certificates: this.getCertificates(),
+      templateConfig: this.getTemplateConfig(),
+      ...(partial || {})
+    };
 
+    // 1. Push to Firebase Cloud Firestore if connected
+    if (window.FirebaseSync && typeof window.FirebaseSync.pushToCloud === 'function') {
+      window.FirebaseSync.pushToCloud(payload);
+    }
+
+    // 2. Push to Node.js Backend API
+    try {
       await fetch('/api/data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
     } catch (e) {
-      console.warn('Failed to push update to server:', e);
+      // Offline fallback
     }
+
+    // 3. Notify local UI immediately
+    window.dispatchEvent(new CustomEvent('ecell_data_synced', { detail: { source: 'local_action' } }));
   }
 
   getAdminPassword() {
@@ -288,6 +399,17 @@ class ECellDataStore {
     return member;
   }
 
+  updateMember(memberId, updatedFields) {
+    let members = this.getMembers();
+    const idx = members.findIndex(m => m.id === memberId || m.memberId === memberId);
+    if (idx !== -1) {
+      members[idx] = { ...members[idx], ...updatedFields };
+      this.saveMembers(members);
+      return members[idx];
+    }
+    return null;
+  }
+
   deleteMember(id) {
     this.trackDeleted('members', id);
     let members = this.getMembers();
@@ -313,6 +435,17 @@ class ECellDataStore {
     return event;
   }
 
+  updateEvent(eventId, updatedFields) {
+    let events = this.getEvents();
+    const idx = events.findIndex(e => e.id === eventId);
+    if (idx !== -1) {
+      events[idx] = { ...events[idx], ...updatedFields };
+      this.saveEvents(events);
+      return events[idx];
+    }
+    return null;
+  }
+
   getEventById(id) {
     return this.getEvents().find(e => e.id === id);
   }
@@ -327,7 +460,6 @@ class ECellDataStore {
   // --- ATTENDANCE ---
   getAttendance() {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEYS.ATTENDANCE) || '[]');
-    // Automatic deduplication: keep single newest record per (eventId + date + memberId)
     const seen = new Set();
     const clean = [];
     raw.forEach(r => {
@@ -341,7 +473,6 @@ class ECellDataStore {
   }
 
   saveAttendance(attendance) {
-    // Ensure only deduplicated records are saved
     const seen = new Set();
     const clean = [];
     (attendance || []).forEach(r => {
@@ -364,7 +495,6 @@ class ECellDataStore {
     const dateStr = (event && event.date) ? event.date : now.toISOString().split('T')[0];
     const timestampStr = now.toISOString();
 
-    // Remove any existing records for this event session and target members
     const targetMemberSet = new Set();
     [...presentMemberIds, ...absentMemberIds].forEach(id => {
       const mem = members.find(m => m.id === id || m.memberId === id);
@@ -493,4 +623,4 @@ class ECellDataStore {
   }
 }
 
-window.DataStore = new ECellDataStore();
+window.dataStore = window.DataStore = new ECellDataStore();

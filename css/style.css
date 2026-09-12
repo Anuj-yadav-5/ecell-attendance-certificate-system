@@ -1171,3 +1171,73 @@ input[type="range"] {
     transform: translateY(0) scale(1);
   }
 }
+
+/* Cloud Sync Status Badge */
+.cloud-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  background: rgba(30, 41, 59, 0.6);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+}
+.cloud-sync-badge:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+.sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  position: relative;
+}
+.cloud-sync-badge.status-connected {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #10b981;
+}
+.cloud-sync-badge.status-connected .sync-dot {
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  animation: pulseGlow 2s infinite;
+}
+.cloud-sync-badge.status-syncing {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+}
+.cloud-sync-badge.status-syncing .sync-dot {
+  background: #f59e0b;
+  animation: pulseGlow 0.8s infinite;
+}
+.cloud-sync-badge.status-local {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #818cf8;
+}
+.cloud-sync-badge.status-local .sync-dot {
+  background: #818cf8;
+}
+.cloud-sync-badge.status-error {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}
+.cloud-sync-badge.status-error .sync-dot {
+  background: #ef4444;
+}
+
+@keyframes pulseGlow {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
