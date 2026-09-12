@@ -1,5 +1,7 @@
 # E-Cell ABES - Attendance & Automated Certificate Dispatch System
 
+> **Made by Anuj Yadav**
+
 A full-stack, enterprise-grade attendance tracking and automated vector PDF certificate dispatch portal built for the **Entrepreneurship Cell (E-Cell)**.
 
 ---
@@ -58,3 +60,8 @@ To deliver real PDF certificates to recipient inboxes:
 1. Go to [Google App Passwords](https://myaccount.google.com/apppasswords).
 2. Generate a 16-character App Password for **E-Cell Portal**.
 3. In the sidebar, navigate to **Email & Dispatch Settings**, enter your Gmail and 16-character App Password, and click **Save & Verify Connection**.
+
+---
+
+## 👨‍💻 Author & Credits
+Made by **Anuj Yadav**
