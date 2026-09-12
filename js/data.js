@@ -68,13 +68,14 @@ const SEED_MEMBERS = [
 class ECellDataStore {
   constructor() {
     this.isSyncing = false;
+    this.lastLocalActionTime = 0;
     this.init();
     this.syncWithServer();
     
-    // Background polling every 4 seconds to sync across browsers/devices even without Firebase
+    // Background polling every 2 seconds for instant reflection across all browsers
     this.pollInterval = setInterval(() => {
       this.syncWithServer();
-    }, 4000);
+    }, 2000);
   }
 
   init() {
@@ -132,10 +133,10 @@ class ECellDataStore {
     if (!cloudData || typeof cloudData !== 'object') return;
 
     let hasChanged = false;
-    const currentMembers = JSON.stringify(this.getMembers());
-    const currentEvents = JSON.stringify(this.getEvents());
-    const currentAttendance = JSON.stringify(this.getAttendance());
-    const currentCerts = JSON.stringify(this.getCertificates());
+    const currentMembers = localStorage.getItem(STORAGE_KEYS.MEMBERS) || '[]';
+    const currentEvents = localStorage.getItem(STORAGE_KEYS.EVENTS) || '[]';
+    const currentAttendance = localStorage.getItem(STORAGE_KEYS.ATTENDANCE) || '[]';
+    const currentCerts = localStorage.getItem(STORAGE_KEYS.CERTIFICATES) || '[]';
 
     if (Array.isArray(cloudData.members) && JSON.stringify(cloudData.members) !== currentMembers) {
       localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(cloudData.members));
@@ -167,6 +168,9 @@ class ECellDataStore {
 
   async syncWithServer() {
     if (this.isSyncing) return;
+    // Don't overwrite if a local user action occurred within the last 1.8 seconds (in-flight POST)
+    if (Date.now() - this.lastLocalActionTime < 1800) return;
+    
     this.isSyncing = true;
 
     try {
@@ -182,126 +186,71 @@ class ECellDataStore {
       }
 
       const serverData = json.data;
-      const localMembers = this.getMembers();
-      const localEvents = this.getEvents();
-      const localAttendance = this.getAttendance();
-      const localCerts = this.getCertificates();
-      const localTemplate = this.getTemplateConfig();
-      const deletedLog = this.getDeletedLog();
+      let hasChanged = false;
 
-      // 1. Merge Members (Union preserving local and server)
-      const memberMap = new Map();
+      const currentMembersStr = localStorage.getItem(STORAGE_KEYS.MEMBERS) || '[]';
+      const currentEventsStr = localStorage.getItem(STORAGE_KEYS.EVENTS) || '[]';
+      const currentAttendanceStr = localStorage.getItem(STORAGE_KEYS.ATTENDANCE) || '[]';
+      const currentCertsStr = localStorage.getItem(STORAGE_KEYS.CERTIFICATES) || '[]';
+      const currentTemplateStr = localStorage.getItem(STORAGE_KEYS.TEMPLATE_CONFIG) || JSON.stringify(DEFAULT_TEMPLATE_CONFIG);
+      const currentAdminPwd = localStorage.getItem(STORAGE_KEYS.ADMIN_PASSWORD) || 'admin123';
+
       if (Array.isArray(serverData.members)) {
-        serverData.members.forEach(m => {
-          if (m && (m.id || m.memberId) && !deletedLog.members.includes(m.id)) {
-            memberMap.set(m.id || m.memberId, m);
-          }
-        });
-      }
-      localMembers.forEach(m => {
-        if (m && (m.id || m.memberId) && !deletedLog.members.includes(m.id)) {
-          memberMap.set(m.id || m.memberId, m);
+        const serverMembersStr = JSON.stringify(serverData.members);
+        if (serverMembersStr !== currentMembersStr) {
+          localStorage.setItem(STORAGE_KEYS.MEMBERS, serverMembersStr);
+          hasChanged = true;
         }
-      });
-      const mergedMembers = Array.from(memberMap.values());
+      }
 
-      // 2. Merge Events
-      const eventMap = new Map();
       if (Array.isArray(serverData.events)) {
-        serverData.events.forEach(e => {
-          if (e && e.id && !deletedLog.events.includes(e.id)) {
-            eventMap.set(e.id, e);
-          }
-        });
-      }
-      localEvents.forEach(e => {
-        if (e && e.id && !deletedLog.events.includes(e.id)) {
-          eventMap.set(e.id, e);
+        const serverEventsStr = JSON.stringify(serverData.events);
+        if (serverEventsStr !== currentEventsStr) {
+          localStorage.setItem(STORAGE_KEYS.EVENTS, serverEventsStr);
+          hasChanged = true;
         }
-      });
-      const mergedEvents = Array.from(eventMap.values());
+      }
 
-      // 3. Merge Attendance Records
-      const attMap = new Map();
       if (Array.isArray(serverData.attendance)) {
-        serverData.attendance.forEach(r => {
-          if (r && r.eventId && r.memberId) {
-            const key = `${r.eventId}_${r.date}_${r.memberId}`;
-            const sessionKey = `${r.eventId}_${r.date}`;
-            if (!deletedLog.sessions.includes(sessionKey)) {
-              attMap.set(key, r);
-            }
-          }
-        });
-      }
-      localAttendance.forEach(r => {
-        if (r && r.eventId && r.memberId) {
-          const key = `${r.eventId}_${r.date}_${r.memberId}`;
-          const sessionKey = `${r.eventId}_${r.date}`;
-          if (!deletedLog.sessions.includes(sessionKey)) {
-            attMap.set(key, r);
-          }
+        const serverAttendanceStr = JSON.stringify(serverData.attendance);
+        if (serverAttendanceStr !== currentAttendanceStr) {
+          localStorage.setItem(STORAGE_KEYS.ATTENDANCE, serverAttendanceStr);
+          hasChanged = true;
         }
-      });
-      const mergedAttendance = Array.from(attMap.values());
+      }
 
-      // 4. Merge Certificates
-      const certMap = new Map();
       if (Array.isArray(serverData.certificates)) {
-        serverData.certificates.forEach(c => {
-          if (c && (c.id || c.certificateNumber) && !deletedLog.certs.includes(c.id)) {
-            certMap.set(c.id || c.certificateNumber, c);
-          }
-        });
-      }
-      localCerts.forEach(c => {
-        if (c && (c.id || c.certificateNumber) && !deletedLog.certs.includes(c.id)) {
-          certMap.set(c.id || c.certificateNumber, c);
+        const serverCertsStr = JSON.stringify(serverData.certificates);
+        if (serverCertsStr !== currentCertsStr) {
+          localStorage.setItem(STORAGE_KEYS.CERTIFICATES, serverCertsStr);
+          hasChanged = true;
         }
-      });
-      const mergedCerts = Array.from(certMap.values());
-
-      // 5. Merge Template Config
-      const mergedTemplate = {
-        ...DEFAULT_TEMPLATE_CONFIG,
-        ...(serverData.templateConfig || {}),
-        ...(localTemplate || {})
-      };
-      if (localTemplate && localTemplate.bgImage) {
-        mergedTemplate.bgImage = localTemplate.bgImage;
-      } else if (serverData.templateConfig && serverData.templateConfig.bgImage) {
-        mergedTemplate.bgImage = serverData.templateConfig.bgImage;
       }
 
-      // 6. Admin Password
-      const mergedAdminPwd = (serverData.adminPassword && serverData.adminPassword !== 'admin123')
-        ? serverData.adminPassword
-        : this.getAdminPassword();
+      if (serverData.templateConfig && typeof serverData.templateConfig === 'object') {
+        const serverTemplateStr = JSON.stringify(serverData.templateConfig);
+        if (serverTemplateStr !== currentTemplateStr) {
+          localStorage.setItem(STORAGE_KEYS.TEMPLATE_CONFIG, serverTemplateStr);
+        }
+      }
 
-      const membersChanged = JSON.stringify(mergedMembers) !== JSON.stringify(localMembers);
-      const eventsChanged = JSON.stringify(mergedEvents) !== JSON.stringify(localEvents);
-      const attendanceChanged = JSON.stringify(mergedAttendance) !== JSON.stringify(localAttendance);
-      const certsChanged = JSON.stringify(mergedCerts) !== JSON.stringify(localCerts);
+      if (serverData.adminPassword && serverData.adminPassword !== 'admin123' && serverData.adminPassword !== currentAdminPwd) {
+        localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, serverData.adminPassword);
+      }
 
-      // Save complete merged dataset to LocalStorage
-      localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(mergedMembers));
-      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(mergedEvents));
-      localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(mergedAttendance));
-      localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(mergedCerts));
-      localStorage.setItem(STORAGE_KEYS.TEMPLATE_CONFIG, JSON.stringify(mergedTemplate));
-      localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, mergedAdminPwd);
-
-      if (membersChanged || eventsChanged || attendanceChanged || certsChanged) {
+      if (hasChanged) {
         window.dispatchEvent(new CustomEvent('ecell_data_synced', { detail: { source: 'server' } }));
       }
     } catch (e) {
-      // Server offline or static mode - perfectly fine
+      // Offline / network issue
     } finally {
       this.isSyncing = false;
     }
   }
 
   async pushToServer(partial = null) {
+    this.lastLocalActionTime = Date.now();
+
     const payload = {
       adminPassword: this.getAdminPassword(),
       members: this.getMembers(),
