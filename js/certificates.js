@@ -27,7 +27,7 @@ class ECellCertificateEngine {
       nameY = (options.nameY !== undefined ? options.nameY : (config.nameY !== undefined ? config.nameY : 420)),
       nameFontSize = (options.nameFontSize !== undefined ? options.nameFontSize : (config.nameFontSize || 48)),
       nameColor = (options.nameColor !== undefined ? options.nameColor : (config.nameColor || '#1e293b')),
-      fontFamily = (options.fontFamily !== undefined ? options.fontFamily : (config.fontFamily || 'Plus Jakarta Sans')),
+      fontFamily = (options.fontFamily !== undefined ? options.fontFamily : (config.fontFamily || 'Poppins')),
       fontWeight = (options.fontWeight !== undefined ? options.fontWeight : (config.fontWeight || 'bold')),
       textAlign = (options.textAlign !== undefined ? options.textAlign : (config.textAlign || 'center'))
     } = options;
@@ -53,7 +53,7 @@ class ECellCertificateEngine {
     // 2. Draw Dynamic Member Name
     ctx.save();
     ctx.fillStyle = nameColor;
-    ctx.font = `${fontWeight} ${nameFontSize}px "${fontFamily}", "Outfit", sans-serif`;
+    ctx.font = `${fontWeight} ${nameFontSize}px "${fontFamily}", "Poppins", "Plus Jakarta Sans", sans-serif`;
     ctx.textAlign = textAlign;
     ctx.textBaseline = 'middle';
     ctx.fillText(name.toUpperCase(), nameX, nameY);

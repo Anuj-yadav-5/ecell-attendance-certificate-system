@@ -20,7 +20,7 @@ const DEFAULT_TEMPLATE_CONFIG = {
   nameY: 420,
   nameFontSize: 46,
   nameColor: '#1e293b',
-  fontFamily: 'Plus Jakarta Sans',
+  fontFamily: 'Poppins',
   fontWeight: 'bold',
   textAlign: 'center'
 };

@@ -1071,7 +1071,7 @@ const App = {
     if (document.getElementById('sliderNameY')) document.getElementById('sliderNameY').value = config.nameY || 420;
     if (document.getElementById('sliderNameFontSize')) document.getElementById('sliderNameFontSize').value = config.nameFontSize || 46;
     if (document.getElementById('colorNameText')) document.getElementById('colorNameText').value = config.nameColor || '#1e293b';
-    if (document.getElementById('selectFontFamily')) document.getElementById('selectFontFamily').value = config.fontFamily || 'Plus Jakarta Sans';
+    if (document.getElementById('selectFontFamily')) document.getElementById('selectFontFamily').value = config.fontFamily || 'Poppins';
     if (document.getElementById('selectFontWeight')) document.getElementById('selectFontWeight').value = config.fontWeight || 'bold';
   },
 
